@@ -1,13 +1,18 @@
 # SPDX-License-Identifier: GPL-2.0
 LDFLAGS += -fsanitize=address -fsanitize=undefined
-CFLAGS += -std=c99 -D_GNU_SOURCE -I. -g -Og -Wall -I/usr/include/libdrm -Wno-unused-function
-LDLIBS += -L/home/glisse/local/lib64 -lrdmacm -libverbs -lhugetlbfs -ldrm -lOpenCL -lm
+CFLAGS += -D_GNU_SOURCE -I$(HOME)/local/include -I. -g -Og -Wall -I/usr/include/libdrm -Wno-unused-function
+LDLIBS += -L$(HOME)/local/lib64 -lhugetlbfs -ldrm -lOpenCL -lm
 TARGETS = test-malloc-read test-malloc-write \
-	test-malloc-vram-read test-malloc-vram-write \
+	test-malloc-vram-read test-malloc-vram-clear test-malloc-vram-write \
+	test-malloc-vram-plus \
 	test-share-read test-share-write \
 	test-hugetlbfs-read test-hugetlbfs-write \
 	test-file-read test-file-write \
-	test-file-private
+	test-file-private test-write-hole \
+	test-data-read test-data-write \
+	test-stack-read test-stack-write \
+	test-thp-read test-thp-write test-malloc-read-zero \
+	test-thp-migrate test-thp-zero
 
 targets: $(TARGETS)
 

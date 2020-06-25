@@ -15,19 +15,27 @@
  */
 #include "helpers.h"
 
-#define NWORDS  (1 << 16)
+#define NWORDS  (1 << 19)
+#define TWOMEG  (1 << 21)
 
 int main(int argc, char* argv[])
 {
     enum status status = SUCCESS;
     struct cl_program clprog;
     char *append = "\n";
+    void *map_orig;
     void *map;
     int res;
 
-    map = mem_anon_map(NWORDS * sizeof(int));
-    if (map == NULL) {
+    map_orig = mem_anon_map(2 * TWOMEG);
+    if (map_orig == NULL) {
         append = "mapping anon failed\n";
+        status = ERROR;
+        goto out;
+    }
+    map = (void *)ALIGN((uintptr_t)map_orig, TWOMEG);
+    if (madvise(map, TWOMEG, MADV_HUGEPAGE)) {
+        append = "madvise huge failed\n";
         status = ERROR;
         goto out;
     }
@@ -39,16 +47,23 @@ int main(int argc, char* argv[])
         goto out;
     }
 
-    memcpy(map, clprog.r, NWORDS * sizeof(int));
+    memcpy(map, clprog.a, NWORDS * sizeof(int));
+#if 0
+    if (mprotect(map, NWORDS * sizeof(int), PROT_READ)) {
+        append = "mprotect failed\n";
+        status = ERROR;
+        goto out;
+    }
+#endif
 
-    res = cl_program_run(&clprog, NULL, NULL, map);
+    res = cl_program_run(&clprog, map, NULL, NULL);
     if (res) {
         append = "cl program run failed\n";
         status = ERROR;
         goto out;
     }
 
-    mem_unmap(map, NWORDS * sizeof(int));
+    mem_unmap(map_orig, 2 * TWOMEG);
 
 out:
     print_status(status, argv, append);

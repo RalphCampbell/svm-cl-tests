@@ -39,6 +39,8 @@ int main(int argc, char* argv[])
         goto out;
     }
 
+    memcpy(map, clprog.r, NWORDS * sizeof(int));
+
     res = cl_program_run(&clprog, NULL, NULL, map);
     if (res) {
         append = "cl program run failed\n";

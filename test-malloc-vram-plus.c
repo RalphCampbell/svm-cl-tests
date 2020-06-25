@@ -24,31 +24,46 @@ int main(int argc, char* argv[])
     char *append = "\n";
     void *map;
     int res;
+    unsigned nwords = NWORDS;
 
-    map = mem_anon_map(NWORDS * sizeof(int));
+    if (argc > 1)
+        nwords = strtol(argv[1], NULL, 0);
+
+    map = mem_anon_map(nwords * sizeof(int));
     if (map == NULL) {
         append = "mapping anon failed\n";
         status = ERROR;
         goto out;
     }
 
-    res = cl_program_init(&clprog, NWORDS);
+    res = cl_program_init(&clprog, nwords);
     if (res) {
         append = "cl program init failed\n";
         status = ERROR;
         goto out;
     }
 
-    memcpy(map, clprog.r, NWORDS * sizeof(int));
+    memcpy(map, clprog.a, nwords * sizeof(int));
+    if (mprotect(map, nwords * sizeof(int), PROT_READ)) {
+        append = "mprotect failed\n";
+        status = ERROR;
+        goto out;
+    }
+    res = cl_program_migrate(&clprog, (void *)((uintptr_t)map - (1UL << 16)));
+    if (res) {
+        append = "migrating memory failed\n";
+        status = ERROR;
+        goto out;
+    }
 
-    res = cl_program_run(&clprog, NULL, NULL, map);
+    res = cl_program_run(&clprog, map, NULL, NULL);
     if (res) {
         append = "cl program run failed\n";
         status = ERROR;
         goto out;
     }
 
-    mem_unmap(map, NWORDS * sizeof(int));
+    mem_unmap(map, nwords * sizeof(int));
 
 out:
     print_status(status, argv, append);

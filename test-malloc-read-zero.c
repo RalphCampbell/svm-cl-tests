@@ -24,6 +24,7 @@ int main(int argc, char* argv[])
     char *append = "\n";
     void *map;
     int res;
+    unsigned i;
 
     map = mem_anon_map(NWORDS * sizeof(int));
     if (map == NULL) {
@@ -39,13 +40,32 @@ int main(int argc, char* argv[])
         goto out;
     }
 
-    memcpy(map, clprog.r, NWORDS * sizeof(int));
+    if (mprotect(map, NWORDS * sizeof(int), PROT_READ)) {
+        append = "mprotect failed\n";
+        status = ERROR;
+        goto out;
+    }
 
-    res = cl_program_run(&clprog, NULL, NULL, map);
+    /* Create a special zero page */
+    if ((*(int *)map) != 0) {
+        append = "zero page failed\n";
+        status = ERROR;
+        goto out;
+    }
+
+    res = cl_program_run_nocheck(&clprog, map, NULL, NULL);
     if (res) {
         append = "cl program run failed\n";
         status = ERROR;
         goto out;
+    }
+    for (i = 0; i < NWORDS; ++i) {
+        if (clprog.r[i] != -i) {
+            printf("r[%d] = %d\n", i, clprog.r[i]); // XXX
+            append = "cl program check failed\n";
+            status = ERROR;
+            goto out;
+        }
     }
 
     mem_unmap(map, NWORDS * sizeof(int));

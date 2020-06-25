@@ -16,6 +16,8 @@
 #ifndef SVM_CL_TESTS_HELPERS_H
 #define SVM_CL_TESTS_HELPERS_H
 
+#define CL_TARGET_OPENCL_VERSION 220
+
 #include <CL/opencl.h>
 #include <sys/types.h>
 #include <sys/mman.h>
@@ -24,6 +26,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 #include <string.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -36,7 +39,7 @@ void *mem_anon_map(size_t size)
 {
     void *res;
 
-    /* Align on 4K pages ... no real need for that thought ... */
+    /* Align on 4K pages ... no real need for that though ... */
     size = ALIGN(size, 1 << 12);
 
     res = mmap(0, size, PROT_READ | PROT_WRITE,
@@ -51,7 +54,7 @@ void *mem_share_map(size_t size)
 {
     void *res;
 
-    /* Align on 4K pages ... no real need for that thought ... */
+    /* Align on 4K pages ... no real need for that though ... */
     size = ALIGN(size, 1 << 12);
 
     res = mmap(0, size, PROT_READ | PROT_WRITE,
@@ -66,7 +69,7 @@ void *mem_file_map_private(int fd, size_t size)
 {
     void *res;
 
-    /* Align on 4K pages ... no real need for that thought ... */
+    /* Align on 4K pages ... no real need for that though ... */
     size = ALIGN(size, 1 << 12);
 
     res = mmap(0, size, PROT_READ | PROT_WRITE,
@@ -81,7 +84,7 @@ void *mem_file_map_share(int fd, size_t size)
 {
     void *res;
 
-    /* Align on 4K pages ... no real need for that thought ... */
+    /* Align on 4K pages ... no real need for that though ... */
     size = ALIGN(size, 1 << 12);
 
     res = mmap(0, size, PROT_READ | PROT_WRITE,
@@ -305,11 +308,10 @@ error_queue:
     return -1;
 }
 
-static int cl_program_run(struct cl_program *clprog, void *a, void *b, void *r)
+static int cl_program_run_nocheck(struct cl_program *clprog, void *a, void *b, void *r)
 {
     size_t global_size, local_size;
     cl_event event;
-    unsigned i;
     cl_int res;
 
     if (a) {
@@ -375,6 +377,17 @@ static int cl_program_run(struct cl_program *clprog, void *a, void *b, void *r)
         }
     }
 
+    return 0;
+}
+
+static int cl_program_run(struct cl_program *clprog, void *a, void *b, void *r)
+{
+    unsigned i;
+    int ret = cl_program_run_nocheck(clprog, a, b, r);
+
+    if (ret)
+        return ret;
+
     for (i = 0; i < clprog->nwords; ++i) {
         if (clprog->r[i]) {
             return -1;
@@ -391,8 +404,9 @@ static int cl_program_migrate(struct cl_program *clprog, void *mem)
     size_t size;
     cl_int res;
 
-    ptrs[0] = mem;
+    ptrs[0] = (void *)((uintptr_t)mem & ~0xFFFUL);
     size = clprog->nwords * sizeof(int);
+    size = ALIGN(size, 1 << 12);
     res = clEnqueueSVMMigrateMem(clprog->queue, 1, ptrs, &size,
                                  0, 0, NULL, &event);
     if (res != CL_SUCCESS) {

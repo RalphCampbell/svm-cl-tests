@@ -15,43 +15,63 @@
  */
 #include "helpers.h"
 
-#define NWORDS  (1 << 16)
+#define NWORDS  (1 << 19)
+#define TWOMEG  (1 << 21)
 
 int main(int argc, char* argv[])
 {
     enum status status = SUCCESS;
     struct cl_program clprog;
     char *append = "\n";
+    void *map_orig;
     void *map;
     int res;
-    unsigned nwords = NWORDS;
+    const void *ptrs[1];
+    cl_event event;
+    size_t size;
+    cl_int cl_res;
 
-    if (argc > 1)
-        nwords = strtol(argv[1], NULL, 0);
-
-    map = mem_anon_map(nwords * sizeof(int));
-    if (map == NULL) {
+    map_orig = mem_anon_map(2 * TWOMEG);
+    if (map_orig == NULL) {
         append = "mapping anon failed\n";
         status = ERROR;
         goto out;
     }
+    map = (void *)ALIGN((uintptr_t)map_orig, TWOMEG);
+    if (madvise(map, TWOMEG, MADV_HUGEPAGE)) {
+        append = "madvise huge failed\n";
+        status = ERROR;
+        goto out;
+    }
 
-    res = cl_program_init(&clprog, nwords);
+    res = cl_program_init(&clprog, NWORDS);
     if (res) {
         append = "cl program init failed\n";
         status = ERROR;
         goto out;
     }
 
-    memcpy(map, clprog.a, nwords * sizeof(int));
-    if (mprotect(map, nwords * sizeof(int), PROT_READ)) {
+    memcpy(map, clprog.a, NWORDS * sizeof(int));
+#if 0
+    if (mprotect(map, NWORDS * sizeof(int), PROT_READ)) {
         append = "mprotect failed\n";
         status = ERROR;
         goto out;
     }
-    res = cl_program_migrate(&clprog, map);
-    if (res) {
-        append = "migrating memory failed\n";
+#endif
+
+    ptrs[0] = map;
+    size = TWOMEG;
+    cl_res = clEnqueueSVMMigrateMem(clprog.queue, 1, ptrs, &size,
+		    0, 0, NULL, &event);
+    if (cl_res != CL_SUCCESS) {
+        append = "migrating memory start failed\n";
+        status = ERROR;
+        goto out;
+    }
+    cl_res = clWaitForEvents(1, &event);
+    if (cl_res != CL_SUCCESS) {
+        append = "migrating memory wait failed\n";
         status = ERROR;
         goto out;
     }
@@ -63,21 +83,13 @@ int main(int argc, char* argv[])
         goto out;
     }
 
-    res = cl_program_migrate(&clprog, map);
-    if (res) {
-        append = "migrating memory 2nd time failed\n";
+    if (memcmp(map, clprog.a, NWORDS * sizeof(int))) {
+        append = "post compare failed\n";
         status = ERROR;
         goto out;
     }
 
-    res = cl_program_run(&clprog, map, NULL, NULL);
-    if (res) {
-        append = "cl program run 2nd time failed\n";
-        status = ERROR;
-        goto out;
-    }
-
-    mem_unmap(map, nwords * sizeof(int));
+    mem_unmap(map_orig, 2 * TWOMEG);
 
 out:
     print_status(status, argv, append);

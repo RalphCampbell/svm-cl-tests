@@ -15,7 +15,7 @@
  */
 #include "helpers.h"
 
-#define NWORDS  (1 << 16)
+#define NWORDS  (1 << 20)
 
 int main(int argc, char* argv[])
 {

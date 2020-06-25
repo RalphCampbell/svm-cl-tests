@@ -40,6 +40,11 @@ int main(int argc, char* argv[])
     }
 
     memcpy(map, clprog.a, NWORDS * sizeof(int));
+    if (mprotect(map, NWORDS * sizeof(int), PROT_READ)) {
+        append = "mprotect failed\n";
+        status = ERROR;
+        goto out;
+    }
 
     res = cl_program_run(&clprog, map, NULL, NULL);
     if (res) {

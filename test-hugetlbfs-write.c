@@ -15,7 +15,7 @@
  */
 #include "helpers.h"
 
-#define NWORDS  (1 << 16)
+#define NWORDS  (1 << 20)
 
 int main(int argc, char* argv[])
 {
@@ -38,6 +38,8 @@ int main(int argc, char* argv[])
         status = ERROR;
         goto out;
     }
+
+    memcpy(map, clprog.r, NWORDS * sizeof(int));
 
     res = cl_program_run(&clprog, NULL, NULL, map);
     if (res) {

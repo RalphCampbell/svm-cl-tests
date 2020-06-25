@@ -24,31 +24,54 @@ int main(int argc, char* argv[])
     char *append = "\n";
     void *map;
     int res;
+    unsigned nwords = NWORDS;
+    unsigned i;
 
-    map = mem_anon_map(NWORDS * sizeof(int));
+    if (argc > 1)
+        nwords = strtol(argv[1], NULL, 0);
+
+    map = mem_anon_map(nwords * sizeof(int));
     if (map == NULL) {
         append = "mapping anon failed\n";
         status = ERROR;
         goto out;
     }
 
-    res = cl_program_init(&clprog, NWORDS);
+    res = cl_program_init(&clprog, nwords);
     if (res) {
         append = "cl program init failed\n";
         status = ERROR;
         goto out;
     }
 
-    memcpy(map, clprog.r, NWORDS * sizeof(int));
+    if (mprotect(map, nwords * sizeof(int), PROT_READ)) {
+        append = "mprotect failed\n";
+        status = ERROR;
+        goto out;
+    }
+    res = cl_program_migrate(&clprog, map);
+    if (res) {
+        append = "migrating memory failed\n";
+        status = ERROR;
+        goto out;
+    }
 
-    res = cl_program_run(&clprog, NULL, NULL, map);
+    res = cl_program_run_nocheck(&clprog, map, NULL, NULL);
     if (res) {
         append = "cl program run failed\n";
         status = ERROR;
         goto out;
     }
+    for (i = 0; i < nwords; ++i) {
+        if (clprog.r[i] != -i) {
+            printf("i %u map %d r %d\n", i, ((int *)map)[i], clprog.r[i]); // XXX
+            append = "data compare failed\n";
+            status = ERROR;
+            goto out;
+        }
+    }
 
-    mem_unmap(map, NWORDS * sizeof(int));
+    mem_unmap(map, nwords * sizeof(int));
 
 out:
     print_status(status, argv, append);

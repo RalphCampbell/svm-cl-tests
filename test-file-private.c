@@ -25,6 +25,7 @@ int main(int argc, char* argv[])
     int res, fd;
     unsigned i;
     void *map;
+    ssize_t len;
 
     /* Create file and initialize its content. */
     fd = open("/tmp/." __FILE__, O_CREAT | O_TRUNC | O_RDWR, S_IRWXU);
@@ -52,7 +53,7 @@ int main(int argc, char* argv[])
         goto out;
     }
 
-    res = cl_program_run(&clprog, NULL, NULL, map);
+    res = cl_program_run(&clprog, map, NULL, map);
     if (res) {
         append = "cl program run failed\n";
         status = ERROR;
@@ -71,8 +72,8 @@ int main(int argc, char* argv[])
     for (i = 0; i < NWORDS; ++i) {
         unsigned v;
 
-        read(fd, &v, sizeof(int));
-        if (v != i) {
+        len = read(fd, &v, sizeof(int));
+        if (len != sizeof(v) || v != i) {
             append = "checking file failed\n";
             status = ERROR;
             goto out;

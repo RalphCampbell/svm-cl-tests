@@ -52,11 +52,35 @@ int main(int argc, char* argv[])
         goto out;
     }
 
-    res = cl_program_run(&clprog, map, NULL, map);
+    /* Check that the GPU can read the mmap file. */
+    res = cl_program_run(&clprog, map, NULL, NULL);
     if (res) {
         append = "cl program run failed\n";
         status = ERROR;
         goto out;
+    }
+
+    if (madvise(map, (NWORDS / 2) * sizeof(unsigned), MADV_REMOVE)) {
+        append = "madvise(MADV_REMOVE) failed\n";
+        status = ERROR;
+        goto out;
+    }
+
+    /* Check that the GPU can read the updated mmap file. */
+    res = cl_program_run_nocheck(&clprog, map, NULL, NULL);
+    if (res) {
+        append = "cl program run failed\n";
+        status = ERROR;
+        goto out;
+    }
+
+    for (i = 0; i < NWORDS; ++i) {
+        if ((i < NWORDS / 2 && clprog.r[i] != -i) ||
+            (i >= NWORDS / 2 && clprog.r[i] != 0)) {
+            append = "checking file failed\n";
+            status = ERROR;
+            goto out;
+        }
     }
 
     /* Close file, and re-open it and check its content. */
@@ -72,7 +96,9 @@ int main(int argc, char* argv[])
         unsigned v;
 
         len = read(fd, &v, sizeof(int));
-        if (len != sizeof(v) || v) {
+        if (len != sizeof(v) ||
+            (i < NWORDS / 2 && v != 0) ||
+            (i >= NWORDS / 2 && v != i)) {
             append = "checking file failed\n";
             status = ERROR;
             goto out;

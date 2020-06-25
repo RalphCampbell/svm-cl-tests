@@ -22,15 +22,8 @@ int main(int argc, char* argv[])
     enum status status = SUCCESS;
     struct cl_program clprog;
     char *append = "\n";
-    void *map;
     int res;
-
-    map = mem_anon_map(NWORDS * sizeof(int));
-    if (map == NULL) {
-        append = "mapping anon failed\n";
-        status = ERROR;
-        goto out;
-    }
+    int data[NWORDS];
 
     res = cl_program_init(&clprog, NWORDS);
     if (res) {
@@ -39,16 +32,14 @@ int main(int argc, char* argv[])
         goto out;
     }
 
-    memcpy(map, clprog.r, NWORDS * sizeof(int));
+    memcpy(data, clprog.r, NWORDS * sizeof(int));
 
-    res = cl_program_run(&clprog, NULL, NULL, map);
+    res = cl_program_run(&clprog, NULL, NULL, data);
     if (res) {
         append = "cl program run failed\n";
         status = ERROR;
         goto out;
     }
-
-    mem_unmap(map, NWORDS * sizeof(int));
 
 out:
     print_status(status, argv, append);
