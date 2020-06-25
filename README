@@ -1,0 +1,8 @@
+These tests are based on Jerome Glisse's tree:
+https://gitlab.freedesktop.org/glisse/svm-cl-tests
+with additional tests added for new features such as THP migration and mapping.
+
+These are basically just smoke/sanity tests to exercise the functionality
+and depend on work in progress for mesa OpenCL 2.2 support and Linux
+kernel work on HMM and nouveau to support THP migration to device private
+memory and THP system memory mappings in nouveau.
